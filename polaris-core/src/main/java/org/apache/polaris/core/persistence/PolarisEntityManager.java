@@ -20,8 +20,8 @@ package org.apache.polaris.core.persistence;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
+import jakarta.ws.rs.core.SecurityContext;
 import java.util.List;
-import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
@@ -49,7 +49,7 @@ public class PolarisEntityManager {
   private ResolvedPolarisEntity implicitResolvedRootContainerEntity = null;
 
   /**
-   * @param metaStoreManager the metastore manager for the current realm
+   * @param metaStoreManager the metastore manager the current realm
    * @param credentialCache the storage credential cache for the current realm
    * @param entityCache the entity cache
    */
@@ -58,35 +58,29 @@ public class PolarisEntityManager {
       @Nonnull StorageCredentialCache credentialCache,
       @Nonnull EntityCache entityCache) {
     this.metaStoreManager = metaStoreManager;
-    this.entityCache = entityCache;
     this.credentialCache = credentialCache;
+    this.entityCache = entityCache;
   }
 
   public Resolver prepareResolver(
       @Nonnull CallContext callContext,
-      @Nonnull AuthenticatedPolarisPrincipal authenticatedPrincipal,
+      @Nonnull SecurityContext securityContext,
       @Nullable String referenceCatalogName) {
     return new Resolver(
         callContext.getPolarisCallContext(),
         metaStoreManager,
-        authenticatedPrincipal.getPrincipalEntity().getId(),
-        null, /* callerPrincipalName */
-        authenticatedPrincipal.getActivatedPrincipalRoleNames().isEmpty()
-            ? null
-            : authenticatedPrincipal.getActivatedPrincipalRoleNames(),
+        securityContext,
         entityCache,
         referenceCatalogName);
   }
 
   public PolarisResolutionManifest prepareResolutionManifest(
       @Nonnull CallContext callContext,
-      @Nonnull AuthenticatedPolarisPrincipal authenticatedPrincipal,
+      @Nonnull SecurityContext securityContext,
       @Nullable String referenceCatalogName) {
     PolarisResolutionManifest manifest =
-        new PolarisResolutionManifest(
-            callContext, this, authenticatedPrincipal, referenceCatalogName);
-    manifest.setSimulatedResolvedRootContainerEntity(
-        getSimulatedResolvedRootContainerEntity(callContext));
+        new PolarisResolutionManifest(callContext, this, securityContext, referenceCatalogName);
+    manifest.setSimulatedResolvedRootContainerEntity(implicitResolvedRootContainerEntity);
     return manifest;
   }
 

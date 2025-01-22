@@ -21,10 +21,21 @@ package org.apache.polaris.core.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Comparator;
 import java.util.List;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.junit.jupiter.api.Test;
 
 class PolarisCredentialsBootstrapTest {
+
+  private final Comparator<PolarisPrincipalSecrets> comparator =
+      (a, b) ->
+          a.getPrincipalId() == b.getPrincipalId()
+                  && a.getPrincipalClientId().equals(b.getPrincipalClientId())
+                  && a.getMainSecret().equals(b.getMainSecret())
+                  && a.getSecondarySecret().equals(b.getSecondarySecret())
+              ? 0
+              : 1;
 
   @Test
   void nullString() {
@@ -51,28 +62,51 @@ class PolarisCredentialsBootstrapTest {
   }
 
   @Test
-  void duplicateRealm() {
+  void duplicatePrincipal() {
     assertThatThrownBy(
             () ->
                 PolarisCredentialsBootstrap.fromString(
-                    "realm1,client1a,secret1a;realm1,client1b,secret1b"))
-        .hasMessage("Duplicate realm: realm1");
+                    "realm1,user1a,client1a,secret1a;realm1,user1a,client1b,secret1b"))
+        .hasMessage("Duplicate principal: user1a");
   }
 
   @Test
   void getSecretsValidString() {
     PolarisCredentialsBootstrap credentials =
         PolarisCredentialsBootstrap.fromString(
-            " ; realm1 , client1 , secret1 ; realm2 , client2 , secret2 ; ");
-    assertCredentials(credentials);
+            " ; realm1 , user1a , client1a , secret1a ; realm1 , user1b , client1b , secret1b ; realm2 , user2a , client2a , secret2a ; ");
+    assertThat(credentials.getSecrets("realm1", 123, "nonexistent")).isEmpty();
+    assertThat(credentials.getSecrets("nonexistent", 123, "user1a")).isEmpty();
+    assertThat(credentials.getSecrets("realm1", 123, "user1a"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client1a", "secret1a", "secret1a"));
+    assertThat(credentials.getSecrets("realm1", 123, "user1b"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client1b", "secret1b", "secret1b"));
+    assertThat(credentials.getSecrets("realm2", 123, "user2a"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client2a", "secret2a", "secret2a"));
   }
 
   @Test
   void getSecretsValidList() {
     PolarisCredentialsBootstrap credentials =
         PolarisCredentialsBootstrap.fromList(
-            List.of("realm1,client1,secret1", "realm2,client2,secret2"));
-    assertCredentials(credentials);
+            List.of(
+                "realm1,user1a,client1a,secret1a",
+                "realm1,user1b,client1b,secret1b",
+                "realm2,user2a,client2a,secret2a"));
+    assertThat(credentials.getSecrets("realm1", 123, "nonexistent")).isEmpty();
+    assertThat(credentials.getSecrets("nonexistent", 123, "user1a")).isEmpty();
+    assertThat(credentials.getSecrets("realm1", 123, "user1a"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client1a", "secret1a", "secret1a"));
+    assertThat(credentials.getSecrets("realm1", 123, "user1b"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client1b", "secret1b", "secret1b"));
+    assertThat(credentials.getSecrets("realm2", 123, "user2a"))
+        .usingValueComparator(comparator)
+        .contains(new PolarisPrincipalSecrets(123, "client2a", "secret2a", "secret2a"));
   }
 
   @Test
@@ -80,34 +114,15 @@ class PolarisCredentialsBootstrapTest {
     PolarisCredentialsBootstrap credentials = PolarisCredentialsBootstrap.fromEnvironment();
     assertThat(credentials.credentials).isEmpty();
     try {
-      System.setProperty(
-          "polaris.bootstrap.credentials", "realm1,client1,secret1;realm2,client2,secret2");
+      System.setProperty("polaris.bootstrap.credentials", "realm1,user1a,client1a,secret1a");
       credentials = PolarisCredentialsBootstrap.fromEnvironment();
-      assertCredentials(credentials);
+      assertThat(credentials.getSecrets("realm1", 123, "nonexistent")).isEmpty();
+      assertThat(credentials.getSecrets("nonexistent", 123, "user1a")).isEmpty();
+      assertThat(credentials.getSecrets("realm1", 123, "user1a"))
+          .usingValueComparator(comparator)
+          .contains(new PolarisPrincipalSecrets(123, "client1a", "secret1a", "secret1a"));
     } finally {
       System.clearProperty("polaris.bootstrap.credentials");
     }
-  }
-
-  private void assertCredentials(PolarisCredentialsBootstrap credentials) {
-    assertThat(credentials.getSecrets("realm3", 123, "root")).isEmpty();
-    assertThat(credentials.getSecrets("nonexistent", 123, "root")).isEmpty();
-    assertThat(credentials.getSecrets("realm1", 123, "non-root")).isEmpty();
-    assertThat(credentials.getSecrets("realm1", 123, "root"))
-        .hasValueSatisfying(
-            secrets -> {
-              assertThat(secrets.getPrincipalId()).isEqualTo(123);
-              assertThat(secrets.getPrincipalClientId()).isEqualTo("client1");
-              assertThat(secrets.getMainSecret()).isEqualTo("secret1");
-              assertThat(secrets.getSecondarySecret()).isEqualTo("secret1");
-            });
-    assertThat(credentials.getSecrets("realm2", 123, "root"))
-        .hasValueSatisfying(
-            secrets -> {
-              assertThat(secrets.getPrincipalId()).isEqualTo(123);
-              assertThat(secrets.getPrincipalClientId()).isEqualTo("client2");
-              assertThat(secrets.getMainSecret()).isEqualTo("secret2");
-              assertThat(secrets.getSecondarySecret()).isEqualTo("secret2");
-            });
   }
 }

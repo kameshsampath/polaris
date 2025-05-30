@@ -17,33 +17,32 @@
 # under the License.
 #
 
-[tool.poetry]
+[project]
 name = "polaris"
 version = "1.0.0"
 description = "Apache Polaris Management Service"
-authors = ["Apache Software Foundation <dev@polaris.apache.org>"]
-license = "Apache License 2.0"
+authors = [{name = "Apache Software Foundation", email = "dev@polaris.apache.org"}]
+license = {text = "Apache License 2.0"}
 readme = "README.md"
-repository = "https://github.com/apache/polaris/"
-keywords = ["Polaris", "Polaris Management Service"]
-include = ["polaris.management/py.typed"]
-package-mode = true
+requires-python = ">=3.8"
+dependencies = [
+    "urllib3>=1.25.3",
+    "python-dateutil>=2.8.2",
+    "pydantic>=2",
+    "typing-extensions>=4.7.1",
+    "boto3==1.37.37"
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.2.1",
+    "flake8>=4.0.0",
+    "types-python-dateutil>=2.8.19.14",
+    "mypy==1.14.1"
+]
 
-urllib3 = "^1.25.3"
-python-dateutil = ">=2.8.2"
-pydantic = ">=2"
-typing-extensions = ">=4.7.1"
-boto3 = "==1.37.37"
-
-[tool.poetry.dev-dependencies]
-pytest = ">=7.2.1"
-flake8 = ">=4.0.0"
-types-python-dateutil = ">=2.8.19.14"
-mypy = "1.14.1"
-
+[project.urls]
+Repository = "https://github.com/apache/polaris/"
 
 [build-system]
 requires = ["setuptools"]
